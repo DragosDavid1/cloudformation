@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A single SNS sending different messages to specific SQSs
+
+Resources:
+  ###################
+  ##   SNS Topic   ##
+  ###################
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      DisplayName: BTUKADMINEVENTS1
+      TopicName: BTUKADMINEVENTS1
+  ###################
+  ##  SQS Queues   ##
+  ###################
+  BTUKSubscribedQueue1:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: BTUKSubscribedQueue1
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt BTUKSubscribedDLQ1.Arn
+        maxReceiveCount: 5
+  BTUKApprovedQueue1:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: BTUKApprovedQueue1
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt BTUKApprovedDLQ1.Arn
+        maxReceiveCount: 5
+  BTUKCanceledQueue1:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: BTUKCanceledQueue1
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt BTUKCanceledDLQ1.Arn
+        maxReceiveCount: 5
+  ###################
+  ## SQS DL Queues ##
+  ###################
+  BTUKSubscribedDLQ1:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: BTUKSubscribedDLQ1
+  BTUKApprovedDLQ1:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: BTUKApprovedDLQ1
+  BTUKCanceledDLQ1:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: BTUKCanceledDLQ1
+  #############################
+  ##   SQS Access Policies   ##
+  #############################
+  #############################################
+  # allows SNS Topic to publish to the queues #
+  #############################################
+  QueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref BTUKSubscribedQueue1
+        - !Ref BTUKApprovedQueue1
+        - !Ref BTUKCanceledQueue1
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: "*"
+            Condition:
+              ArnEquals: 
+                aws:SourceArn:
+                  !Ref SNSTopic
+  ###########################
+  ##   SNS Filter Policy   ##
+  ###########################
+  BTUKSubscribedSubscription1:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt BTUKSubscribedQueue1.Arn
+      Protocol: sqs
+      RawMessageDelivery: True
+      TopicArn: !Ref SNSTopic
+  BTUKApprovedSubscription1:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt BTUKApprovedQueue1.Arn
+      Protocol: sqs
+      FilterPolicy:
+        status:
+          - approved
+      RawMessageDelivery: True
+      TopicArn: !Ref SNSTopic
+  BTUKCanceledSubscription1:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt BTUKCanceledQueue1.Arn
+      Protocol: sqs
+      FilterPolicy:
+        status:
+          - canceled
+      RawMessageDelivery: True
+      TopicArn: !Ref SNSTopic
