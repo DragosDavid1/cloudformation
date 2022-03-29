@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A single SNS sending different messages to specific SQSs
+
+Resources:
+  ###################
+  ##   SNS Topic   ##
+  ###################
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      DisplayName: btuk-biab-bizevents-dev-default
+      TopicName: btuk-biab-bizevents-dev-default
+  ###################
+  ##  SQS Queues   ##
+  ###################
+  BTUKkciQueue:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: btuk-biab-kci-dev-default
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt btuk-biab-kci-dev-default-DLQ.Arn
+        maxReceiveCount: 5
+  BTUKacronisfulfilmentQueue:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: btuk-biab-acronisfulfilment-dev-default
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt btuk-biab-acronisfulfilment-dev-default-DLQ.Arn
+        maxReceiveCount: 5
+  # BTUKCanceledQueue1:
+  #   Type: AWS::SQS::Queue
+  #   Properties: 
+  #     QueueName: BTUKCanceledQueue1
+  #     RedrivePolicy: 
+  #       deadLetterTargetArn: !GetAtt BTUKCanceledDLQ1.Arn
+  #       maxReceiveCount: 5
+  ###################
+  ## SQS DL Queues ##
+  ###################
+  BTUKkciQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: btuk-biab-kci-dev-default-DLQ
+  BTUKacronisfulfilmentQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties: 
+      QueueName: btuk-biab-acronisfulfilment-dev-default-DLQ
+  # BTUKCanceledDLQ1:
+  #   Type: AWS::SQS::Queue
+  #   Properties: 
+  #     QueueName: BTUKCanceledDLQ1
+  #############################
+  ##   SQS Access Policies   ##
+  #############################
+  #############################################
+  # allows SNS Topic to publish to the queues #
+  #############################################
+  QueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref BTUKkciQueue
+        - !Ref BTUKacronisfulfilmentQueue
+        # - !Ref BTUKCanceledQueue1
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: "*"
+            Condition:
+              ArnEquals: 
+                aws:SourceArn:
+                  !Ref SNSTopic
+  ###########################
+  ##   SNS Filter Policy   ##
+  ###########################
+  # BTUKSubscribedSubscription1:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Endpoint: !GetAtt BTUKSubscribedQueue1.Arn
+  #     Protocol: sqs
+  #     RawMessageDelivery: True
+  #     TopicArn: !Ref SNSTopic
+  BTUKkciSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt BTUKkciQueue.Arn
+      Protocol: sqs
+      FilterPolicy:
+        status:
+          - approved
+      RawMessageDelivery: True
+      TopicArn: !Ref SNSTopic
+  BTUKacronisfulfilmentSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt BTUKacronisfulfilmentQueue.Arn
+      Protocol: sqs
+      FilterPolicy:
+        status:
+          - canceled
+      RawMessageDelivery: True
+      TopicArn: !Ref SNSTopic
